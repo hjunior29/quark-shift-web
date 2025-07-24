@@ -28,14 +28,14 @@
                     </button>
                 </div>
             </div>
-            <div v-if="shortUrl" class="fixed inset-0 flex items-center justify-center z-50 ">
+            <div v-if="shortUrl" class="fixed inset-0 flex items-center justify-center z-50">
                 <div
                     class="bg-white/70 backdrop-blur-sm px-8 py-8 rounded-md shadow-lg w-1/3 h-68 text-center space-y-8 text-gray-800"
                 >
-                    <p class="text-lg font-semibold ">Shortened URL</p>
+                    <p class="text-lg font-semibold">Shortened URL</p>
 
                     <div
-                        class="flex justify-center items-center space-x-2 bg-white/20 px-4 py-2 rounded-md "
+                        class="flex justify-center items-center space-x-2 bg-white/20 px-4 py-2 rounded-md"
                     >
                         <span class="truncate max-w-[90%]">{{ shortUrl }}</span>
                     </div>
@@ -68,14 +68,17 @@
 
 <script lang="ts" setup>
 import { onBeforeUnmount, onMounted, ref } from 'vue'
-import { apiRequest } from './lib/apiRequest'
+import { apiRequest, type ApiResponse } from './lib/apiRequest'
 import * as THREE from 'three'
 import CLOUDS from 'vanta/dist/vanta.clouds.min'
+import type { VantaEffect } from '@/types/vanta-effect'
 
 const vantaRef = ref<HTMLDivElement | null>(null)
-let vantaEffect: any = null
+let vantaEffect: VantaEffect
 
 onMounted(() => {
+    apiWakeUp()
+
     if (!vantaEffect && vantaRef.value) {
         vantaEffect = CLOUDS({
             el: vantaRef.value,
@@ -107,7 +110,7 @@ const shortUrl = ref('')
 const handleSubmit = async () => {
     if (!inputUrl.value.trim()) return
 
-    const res = await apiRequest<string>({
+    const res = await apiRequest<ApiResponse<{ shortened_url: string }>>({
         method: 'POST',
         endpoint: '/shorten',
         data: { url: inputUrl.value },
@@ -120,6 +123,46 @@ const handleSubmit = async () => {
 
 const copyToClipboard = () => {
     navigator.clipboard.writeText(shortUrl.value)
+}
+
+const apiPingSuccess = ref(false)
+
+const apiWakeUp = async () => {
+    const start = Date.now()
+    apiPingSuccess.value = false
+    let attempts = 0
+
+    while (!apiPingSuccess.value) {
+        attempts++
+
+        const res = await apiRequest<ApiResponse<{ message: string }>>({
+            endpoint: 'ping',
+            method: 'GET',
+        })
+
+        if (!res) {
+            console.warn(`❌ Attempt ${attempts} failed. Retrying in 5 seconds...`)
+            await new Promise((resolve) => setTimeout(resolve, 5_000))
+            continue
+        }
+
+        if (res.status === 200) {
+            apiPingSuccess.value = true
+            const end = Date.now()
+            const duration = Math.round((end - start) / 1000)
+            console.log(`✅ API responded in ${duration} seconds after ${attempts} attempt(s).`)
+        } else {
+            console.warn(
+                `❌ Attempt ${attempts} failed. Retrying in 10 seconds...`,
+                res.message,
+            )
+            await new Promise((resolve) => setTimeout(resolve, 10_000))
+        }
+
+        if (!apiPingSuccess.value) {
+            await new Promise((resolve) => setTimeout(resolve, 5_000))
+        }
+    }
 }
 </script>
 
