@@ -6,7 +6,8 @@
 app = 'quark-shift'
 primary_region = 'gru'
 
-[build]
+[build.args]
+  VITE_API_URL = "https://quark-shift-api.fly.dev"
 
 [http_service]
   internal_port = 80
